@@ -1,4 +1,3 @@
-
 from copy import copy, deepcopy
 from collections import deque, OrderedDict
 from datetime import datetime
@@ -51,15 +50,15 @@ class Dag:
 
         # 1. Get a dict of tags > list of tasks with that tag (used by _task_query to get the list of relevant tasks)
         tags = {
-            m: [i[1] for i in g]
-            for m, g in groupby(
+            group_key: [item[1] for item in group]
+            for group_key, group in groupby(
                 sorted(
                     [
-                        (tag, n)
-                        for n, t in task_definitions.items()
+                        (tag, task_name)
+                        for task_name, task_def in task_definitions.items()
                         for tag in set(
-                            [tt for tt in t["group"].data.get("tags", list())]
-                            + [tt for tt in t["task"].data.get("tags", list())]
+                            [tag for tag in task_def["group"].data.get("tags", list())]
+                            + [tag for tag in task_def["task"].data.get("tags", list())]
                         )
                     ],
                     key=lambda x: x[0],
@@ -70,13 +69,13 @@ class Dag:
 
         # 2. Get a dict of models > list of tasks with that model (used by _task_query to get the list of relevant tasks)
         models = {
-            m: [i[1] for i in g]
-            for m, g in groupby(
+            group_key: [item[1] for item in group]
+            for group_key, group in groupby(
                 sorted(
                     [
-                        (t["model"], n)
-                        for n, t in task_definitions.items()
-                        if t["model"] is not None
+                        (task_def["model"], task_name)
+                        for task_name, task_def in task_definitions.items()
+                        if task_def["model"] is not None
                     ],
                     key=lambda x: x[0],
                 ),
