@@ -81,6 +81,9 @@ class Logger:
             elif event == "finish_stage":
                 self.app_stage_finish(stage, details)
 
+            elif event == "set_tasks":
+                pass
+
             else:
                 self.unhandled(event, context, stage, details)
 

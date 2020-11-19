@@ -57,6 +57,7 @@ class EventTracker:
 
     def set_tasks(self, tasks):
         self.tasks = tasks
+        self.report_event(event="set_tasks", tasks=tasks)
 
     def get_task_tracker(self, task_name):
         if task_name in self.tasks:
