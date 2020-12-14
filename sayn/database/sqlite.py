@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, event
+from pydantic import validator
 
 from . import Database
 
@@ -10,6 +11,7 @@ class Sqlite(Database):
         "CREATE TABLE NO PARENTHESES",
         "INSERT TABLE NO PARENTHESES",
         "NO SET SCHEMA",
+        "NO ALTER INDEXES",
     ]
 
     def create_engine(self, settings):

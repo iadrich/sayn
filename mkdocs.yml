@@ -58,7 +58,6 @@ nav:
     - Project Structure: project_structure.md
     - project.yaml: settings/project_yaml.md
     - settings.yaml: settings/settings_yaml.md
-    - DAGs: dags.md
     - Tasks: tasks/overview.md
     - Presets: presets.md
     - Parameters: parameters.md

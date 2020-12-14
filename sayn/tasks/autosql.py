@@ -3,13 +3,15 @@ from typing import Dict, Any, List, Optional
 
 from pydantic import BaseModel, Field, FilePath, validator
 
-from ..core.errors import Exc, Ok
+from ..core.errors import Exc, Ok, Err
+from ..database import Database
 from .base_sql import BaseSqlTask
 
 
 class Destination(BaseModel):
     db_features: List[str]
     db_type: str
+    db: Optional[str]
     tmp_schema: Optional[str]
     db_schema: Optional[str] = Field(None, alias="schema")
     table: str
@@ -50,12 +52,34 @@ class Config(BaseModel):
 
 class AutoSqlTask(BaseSqlTask):
     def setup(self, **config):
-        config["destination"].update(
-            {
-                "db_features": self.default_db.sql_features,
-                "db_type": self.default_db.db_type,
-            }
-        )
+        conn_names_list = [
+            n for n, c in self.connections.items() if isinstance(c, Database)
+        ]
+
+        # set the target db for execution
+        # this check needs to happen here so we can pass db_features and db_type to the validator
+        if (
+            isinstance(config.get("destination"), dict)
+            and config["destination"].get("db") is not None
+        ):
+            if config["destination"]["db"] not in conn_names_list:
+                return Err(
+                    "task_definition",
+                    "destination_db_not_in_settings",
+                    db=config["destination"]["db"],
+                )
+            self._target_db = config["destination"]["db"]
+        else:
+            self._target_db = self._default_db
+
+        if isinstance(config.get("destination"), dict):
+            config["destination"].update(
+                {
+                    "db_features": self.target_db.sql_features,
+                    "db_type": self.target_db.db_type,
+                }
+            )
+
         try:
             self.config = Config(
                 sql_folder=self.run_arguments["folders"]["sql"], **config
@@ -70,12 +94,27 @@ class AutoSqlTask(BaseSqlTask):
         self.tmp_table = f"sayn_tmp_{self.table}"
         self.delete_key = self.config.delete_key
 
-        result = self.default_db._validate_ddl(self.config.ddl)
+        # DDL validation
+        result = self.target_db._validate_ddl(self.config.ddl)
         if result.is_err:
             return result
         else:
             self.ddl = result.value
 
+        # If we have columns with no type, we can't issue a create table ddl
+        # and will issue a create table as select instead.
+        # However, if the db doesn't support alter idx then we can't have a
+        # primary key
+        cols_no_type = [c for c in self.ddl["columns"] if c["type"] is None]
+        if (
+            len(self.ddl["primary_key"]) > 0
+            and "NO ALTER INDEXES" in self.target_db.sql_features
+        ) and (len(self.ddl["columns"]) == 0 or len(cols_no_type) > 0):
+            return Err(
+                "task_definition", "missing_column_types_pk", columns=cols_no_type,
+            )
+
+        # Template compilation
         result = self.get_template(self.config.file_name)
         if result.is_err:
             return result
@@ -88,6 +127,7 @@ class AutoSqlTask(BaseSqlTask):
         else:
             self.sql_query = result.value
 
+        # Materialisation type
         self.is_full_load = (
             self.materialisation == "table" or self.run_arguments["full_load"]
         )
@@ -102,12 +142,16 @@ class AutoSqlTask(BaseSqlTask):
             self.steps.extend(["Cleanup", "Create Temp"])
 
             if self.is_full_load:
-                if len(self.ddl["indexes"]) > 0:
+                if len(self.ddl["indexes"]) > 0 or (
+                    len(self.ddl["primary_key"]) > 0
+                    and len(self.ddl["columns"]) > 0
+                    and len(cols_no_type) > 0
+                ):
                     self.steps.append("Create Indexes")
                 self.steps.extend(["Cleanup Target", "Move"])
 
             else:
-                self.steps.extend(["Merge"])
+                self.steps.append("Merge")
 
         if len(self.ddl.get("permissions")) > 0:
             self.steps.append("Grant Permissions")
