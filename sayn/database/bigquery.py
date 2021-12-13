@@ -214,8 +214,8 @@ class Bigquery(Database):
             partition_column = None
             cluster_column = None
 
-        des_clustered = ddl["cluster"]
-        des_partitioned = ddl["partition"]
+        des_clustered = ddl.get("cluster")
+        des_partitioned = ddl.get("partition")
 
         if des_clustered == cluster_column and des_partitioned == partition_column:
             drop = ""
