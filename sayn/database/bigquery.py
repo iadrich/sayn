@@ -220,7 +220,7 @@ class Bigquery(Database):
         if des_clustered == cluster_column and des_partitioned == partition_column:
             drop = ""
         else:
-            drop = f"DROP TABLE IF EXISTS { table };"
+            drop = f"DROP TABLE IF EXISTS {schema}.{table};"
 
         template = self._jinja_env.get_template("create_table.sql")
         query = template.render(
@@ -239,6 +239,7 @@ class Bigquery(Database):
             **ddl,
         )
         query = drop + query
+
         return query
 
 
