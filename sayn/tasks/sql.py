@@ -69,8 +69,14 @@ class Config(BaseConfig):
             return v
 
     @validator("destination")
-    def can_use_schema(cls, v, values):
+    def can_use_schema_and_trim(cls, v, values):
+        # strip
+        v = v.strip()
+
         match = re.match(r"(.*)\.(.*)|(\w+)", v)
+        if match is None:
+            raise ValueError(f'Invalid destination format "{v}"')
+
         if match.group(1) is not None and not values["supports_schemas"]:
             raise ValueError(
                 f'schema not supported for database of type {values["db_type"]}'
